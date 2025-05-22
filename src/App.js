@@ -1,25 +1,36 @@
-import logo from './logo.svg';
-import './App.css';
+import React, { useState } from 'react';
+import DifficultySelector from './components/DifficultySelector';
+import ChessGame from './components/ChessGame';
+import Footer from './components/Footer';
+import Header from './components/Header';
 
-function App() {
+const App = () => {
+  const [difficulty, setDifficulty] = useState(1);
+  const [gameStarted, setGameStarted] = useState(false);
+
+  const startGame = () => setGameStarted(true);
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    <div className='bg-blue-950'>
+      <Header />
+
+      <div className="min-h-screen flex items-center justify-center px-4">
+        {!gameStarted ? (
+          <DifficultySelector
+            difficulty={difficulty}
+            setDifficulty={setDifficulty}
+            startGame={startGame}
+          />
+        ) : (
+          <ChessGame difficulty={difficulty} onBack={() => { setGameStarted(false) }} />
+        )}
+      </div>
+
+      <div>
+        <Footer />
+      </div>
     </div>
   );
-}
+};
 
 export default App;
