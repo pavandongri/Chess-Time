@@ -14,7 +14,7 @@ const App = () => {
     <div className='bg-blue-950'>
       <Header />
 
-      <div className="min-h-screen flex items-center mt-[-20%] justify-center px-4">
+      <div className="mt-[-20%] md:mt-0 min-h-screen flex items-center justify-center px-4">
         {!gameStarted ? (
           <DifficultySelector
             difficulty={difficulty}
