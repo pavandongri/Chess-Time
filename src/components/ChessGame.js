@@ -3,6 +3,31 @@ import { Chess } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
 import WinnerDialog from './WinnerDialog';
 
+// -------------------- Persistence helpers --------------------
+const GAME_STATE_KEY = 'chessGameState';
+
+const saveGameState = (fen, history = []) => {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.setItem(GAME_STATE_KEY, JSON.stringify({ fen, history }));
+    } catch (err) {
+        console.warn('Unable to save game state', err);
+    }
+};
+
+const loadGameState = () => {
+    if (typeof window === 'undefined') return null;
+    const raw = localStorage.getItem(GAME_STATE_KEY);
+    if (!raw) return null;
+    try {
+        return JSON.parse(raw);
+    } catch {
+        return null;
+    }
+};
+
+// --------------------------------------------------------------
+
 const loadStockfish = () => {
     try {
         return new Worker('/stockfish/stockfish.js');
@@ -12,7 +37,7 @@ const loadStockfish = () => {
     }
 };
 
-const ChessGame = ({ difficulty, onBack }) => {
+const ChessGame = ({ difficulty, onBack, resume }) => {
     const gameRef = useRef(new Chess());
     const [game, setGame] = useState(new Chess());
     const [engineReady, setEngineReady] = useState(false);
@@ -20,12 +45,37 @@ const ChessGame = ({ difficulty, onBack }) => {
     const [winner, setWinner] = useState(null);
     const stockfishRef = useRef(null);
     const [boardWidth, setBoardWidth] = useState(500);
-    const [history, setHistory] = useState([]); // to track moves for take back
+    const [history, setHistory] = useState([]);
+
+    // ───────────────────── Resume saved game ─────────────────────
+    useEffect(() => {
+        const saved = loadGameState();
+        if (saved?.fen && saved?.history) {
+            // Replay history on a fresh Chess instance for full internal state sync
+            const restoredGame = restoreGameFromHistory(saved.history);
+            gameRef.current = restoredGame;
+            setGame(new Chess(restoredGame.fen()));
+            setHistory(saved.history);
+            setStatus('Resumed saved game');
+        }
+    }, []);
+    // ──────────────────────────────────────────────────────────────
+
+    const restoreGameFromHistory = (history) => {
+        const chess = new Chess();
+        chess.reset();
+        history.forEach((move) => {
+            // Move can be SAN or UCI, use chess.move(move)
+            chess.move(move);
+        });
+        return chess;
+    };
 
     const depth = useMemo(() => {
-        return difficulty <= 5 ? 8 : difficulty <= 10 ? 12 : 16;
-    }, [difficulty])
+        return difficulty <= 4 ? 4 : difficulty <= 6 ? 6 : 10;
+    }, [difficulty]);
 
+    // -------------------- Highlight checked king -----------------
     const getCheckedKingSquare = () => {
         if (!gameRef.current.inCheck()) return null;
 
@@ -55,7 +105,7 @@ const ChessGame = ({ difficulty, onBack }) => {
         }
         : {};
 
-    // Responsive board width on window resize
+    // -------------------- Responsive board width -----------------
     useEffect(() => {
         const updateBoardWidth = () => {
             const maxWidth = Math.min(window.innerWidth - 40, 500);
@@ -67,6 +117,7 @@ const ChessGame = ({ difficulty, onBack }) => {
         return () => window.removeEventListener('resize', updateBoardWidth);
     }, []);
 
+    // -------------------- Stockfish setup ------------------------
     useEffect(() => {
         const sf = loadStockfish();
         if (!sf) {
@@ -110,12 +161,13 @@ const ChessGame = ({ difficulty, onBack }) => {
                         return;
                     }
 
+                    const newHistory = [...history, moveStr];
+                    setHistory(newHistory);
                     setGame(new Chess(gameRef.current.fen()));
+                    saveGameState(gameRef.current.fen(), newHistory);
+
                     setStatus('Your move');
                     checkGameOver();
-
-                    // Save move to history for take back
-                    setHistory(prev => [...prev, moveStr]);
                 } catch (error) {
                     console.error('Invalid move by engine:', error);
                     setStatus('Engine error with move');
@@ -127,8 +179,10 @@ const ChessGame = ({ difficulty, onBack }) => {
             sf.terminate();
             stockfishRef.current = null;
         };
-    }, [difficulty]);
+    }, [difficulty, depth, history]);
+    // --------------------------------------------------------------
 
+    // -------------------- Utilities ------------------------------
     const checkGameOver = () => {
         if (gameRef.current.isGameOver()) {
             if (gameRef.current.isCheckmate()) {
@@ -158,6 +212,7 @@ const ChessGame = ({ difficulty, onBack }) => {
         setStatus('Stockfish thinking...');
     };
 
+    // -------------------- Player move ----------------------------
     const onDrop = (sourceSquare, targetSquare) => {
         try {
             const move = gameRef.current.move({
@@ -168,11 +223,12 @@ const ChessGame = ({ difficulty, onBack }) => {
 
             if (!move) return false;
 
+            const newHistory = [...history, move.san];
+            setHistory(newHistory);
             setGame(new Chess(gameRef.current.fen()));
-            setStatus("Stockfish's turn");
+            saveGameState(gameRef.current.fen(), newHistory);
 
-            // Save human move to history for take back
-            setHistory(prev => [...prev, move.san]);
+            setStatus("Stockfish's turn");
 
             setTimeout(() => {
                 makeAIMove();
@@ -186,40 +242,55 @@ const ChessGame = ({ difficulty, onBack }) => {
         }
     };
 
-    // Undo last two moves: AI + player
+    // -------------------- Take back ------------------------------
     const handleTakeBack = () => {
         if (history.length < 2) {
             setStatus('No moves to take back');
             return;
         }
 
-        // Undo twice (AI + player)
         gameRef.current.undo(); // AI move
         gameRef.current.undo(); // player move
-
         setGame(new Chess(gameRef.current.fen()));
         setWinner(null);
-        setStatus('Take back move. Your turn.');
 
-        // Remove last two moves from history
-        setHistory(prev => prev.slice(0, prev.length - 2));
+        const newHistory = history.slice(0, history.length - 2);
+        setHistory(newHistory);
+        saveGameState(gameRef.current.fen(), newHistory);
+
+        setStatus('Take back move. Your turn.');
+    };
+
+    // -------------------- Back to menu ---------------------------
+    const handleBack = () => {
+        onBack();
     };
 
     const currentTurn = gameRef.current.turn() === 'w' ? 'White' : 'Black';
 
+    // -------------------- Render --------------------------------
     return (
-        <div className="flex flex-col items-center justify-center px-4 font-mono text-white  ">
+        <div className="flex flex-col items-center justify-center px-4 font-mono text-white">
             <header className="w-full flex flex-col md:flex-row justify-between items-center mb-6 px-2 select-none gap-4 md:gap-0">
-
                 <div className="flex flex-col space-y-1 items-center md:items-start">
-
                     <div className="text-sm font-semibold mt-2">
                         Difficulty: <span>{difficulty}</span>
                     </div>
-                    <div className="text-lg font-semibold mt-1">
-                        Current Turn: <span className={currentTurn === 'White' ? 'text-yellow-400' : 'text-blue-400'}>{currentTurn}</span>
-                    </div>
-                    <div className="text-sm mt-1">{status}</div>
+                    {
+                        gameRef.current.isGameOver()
+                            ?
+                            <div className='text-lg font-semibold mt-1'>
+                                Game Over
+                            </div>
+                            :
+                            <div>
+                                <div className="text-lg font-semibold mt-1">
+                                    Current Turn:{' '}
+                                    <span className={currentTurn === 'White' ? 'text-yellow-400' : 'text-blue-400'}>{currentTurn}</span>
+                                </div>
+                                <div className="text-sm mt-1">{status}</div>
+                            </div>
+                    }
                 </div>
             </header>
 
@@ -235,42 +306,50 @@ const ChessGame = ({ difficulty, onBack }) => {
                 customSquareStyles={customSquareStyles}
             />
 
-            <div className="flex justify-between items-center w-full mt-[2rem]">
-                <div onClick={onBack}>
-                    <button
+            <div className='w-full flex justify-between items-center w-full mt-[2rem]'>
 
-                        aria-label="Back"
-                        className="text-1xl p-2 font-bold transition-colors hover:text-yellow-400 border-[1px] border-yellow-400 rounded"
-                        title="Back"
-                    >
-                        ← Menu
-                    </button>
-                </div>
-                <div>
-                    <button
-                        onClick={handleTakeBack}
-                        disabled={history.length < 2 || winner !== null}
-                        className="text-1xl p-2 border-[1px] border-yellow-400 rounded bg-yellow-600 hover:bg-yellow-700 transition disabled:bg-gray-600 disabled:cursor-not-allowed"
-                        title="Take back"
-                        aria-label="Take back move"
-                    >
-                        ↩️ Take Back
-                    </button>
-                </div>
+                <button
+                    onClick={handleBack}
+                    aria-label="Back"
+                    className="text-1xl p-2 font-bold transition-colors hover:text-yellow-400 border-[1px] border-yellow-400 rounded"
+                    title="Back"
+                >
+                    ← Home
+                </button>
+
+                {
+                    gameRef.current.isGameOver() &&
+                    <div className="">
+                        <div className='text-1xl p-2 rounded font-bold border border-yellow-400 cursor-pointer'>
+                            {
+                                gameRef.current.isCheckmate() &&
+                                <div> {gameRef.current.turn() === 'w' ? 'White' : 'Black'} Wins</div>
+                            }
+                            {
+                                gameRef.current.isDraw() && <div> Draw </div>
+
+                            }
+                            {
+                                gameRef.current.isStalemate() && <div> Stalemate </div>
+                            }
+                        </div>
+
+                    </div>
+
+                }
+
+                <button
+                    onClick={handleTakeBack}
+                    disabled={history.length < 2}
+                    className="text-1xl p-2 border-[1px] border-yellow-400 rounded bg-yellow-600 hover:bg-yellow-700 transition disabled:bg-gray-600 disabled:cursor-not-allowed"
+                    title="Take back"
+                    aria-label="Take back move"
+                >
+                    ↩️ Take Back
+                </button>
+
+
             </div>
-
-
-
-            <WinnerDialog
-                winner={winner}
-                onPlayAgain={() => {
-                    gameRef.current = new Chess();
-                    setGame(new Chess());
-                    setWinner(null);
-                    setStatus('Your move');
-                    setHistory([]);
-                }}
-            />
         </div>
     );
 };

@@ -8,8 +8,10 @@ const options = [...Array(8)].map((_, i) => ({
 
 const DifficultySelector = ({
   difficulty = 1,
-  setDifficulty = () => { },
-  startGame = () => { },
+  setDifficulty = () => {},
+  startGame = () => {},
+  canResume = false,
+  resumeGame = () => {},
 }) => {
   const selectedOption = options.find((opt) => opt.value === difficulty);
 
@@ -21,10 +23,11 @@ const DifficultySelector = ({
 
       <label
         htmlFor="difficulty-select"
-        className="block text-blue-500 font-semibold text-xl mb-3 text-left text-center"
+        className="block text-blue-500 font-semibold text-xl mb-3 text-center"
       >
         Select Difficulty Level
       </label>
+
       <Select
         inputId="difficulty-select"
         options={options}
@@ -37,11 +40,21 @@ const DifficultySelector = ({
 
       <button
         onClick={startGame}
-        className="mt-8 w-full py-3 bg-blue-500 hover:bg-blue-600 active:bg-blue-600 rounded-xl text-xl font-semibold shadow-lg transition duration-300 text-white"
-        aria-label="Start Chess Game"
+        className="w-full py-3 bg-blue-500 hover:bg-blue-600 active:bg-blue-600 rounded-xl text-xl font-semibold shadow-lg transition duration-300 text-white"
+        aria-label="Start New Chess Game"
       >
-        Start Game
+        Start New Game
       </button>
+
+      {canResume && (
+        <button
+          onClick={resumeGame}
+          className="mt-4 w-full py-3 bg-green-500 hover:bg-green-600 active:bg-green-600 rounded-xl text-xl font-semibold shadow-lg transition duration-300 text-white"
+          aria-label="Resume Previous Chess Game"
+        >
+          ♻️ Resume Previous Game
+        </button>
+      )}
     </div>
   );
 };
