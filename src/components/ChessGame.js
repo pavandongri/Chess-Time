@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Chess } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
-import WinnerDialog from './WinnerDialog';
 
 // -------------------- Persistence helpers --------------------
 const GAME_STATE_KEY = 'chessGameState';
@@ -37,7 +36,8 @@ const loadStockfish = () => {
     }
 };
 
-const ChessGame = ({ difficulty, onBack, resume }) => {
+
+const ChessGame = ({ difficulty, onBack, resume, userPieceColor = 'w' }) => {
     const gameRef = useRef(new Chess());
     const [game, setGame] = useState(new Chess());
     const [engineReady, setEngineReady] = useState(false);
@@ -181,6 +181,14 @@ const ChessGame = ({ difficulty, onBack, resume }) => {
         };
     }, [difficulty, depth, history]);
     // --------------------------------------------------------------
+    useEffect(() => {
+        if (!resume && userPieceColor === 'b' && engineReady) {
+            stockfishRef.current.postMessage(`position fen ${gameRef.current.fen()}`);
+            stockfishRef.current.postMessage(`go depth ${depth}`);
+            setStatus('Engine is thinking...');
+        }
+    }, [resume, userPieceColor, engineReady, depth]);
+
 
     // -------------------- Utilities ------------------------------
     const checkGameOver = () => {
@@ -295,6 +303,7 @@ const ChessGame = ({ difficulty, onBack, resume }) => {
             </header>
 
             <Chessboard
+                boardOrientation={userPieceColor === 'w' ? 'white' : 'black'}
                 position={game.fen()}
                 onPieceDrop={onDrop}
                 boardWidth={boardWidth}

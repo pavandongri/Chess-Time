@@ -8,12 +8,20 @@ const options = [...Array(8)].map((_, i) => ({
 
 const DifficultySelector = ({
   difficulty = 1,
-  setDifficulty = () => {},
-  startGame = () => {},
+  setDifficulty = () => { },
+  startGame = () => { },
   canResume = false,
-  resumeGame = () => {},
+  resumeGame = () => { },
+  userPieceColor = 'w',
+  setUserPieceColor = () => { },
 }) => {
   const selectedOption = options.find((opt) => opt.value === difficulty);
+
+  const handlePieceColor = (color = '') => {
+    if (!color) return
+    setUserPieceColor(color)
+    localStorage.setItem('userPieceColor', color)
+  }
 
   return (
     <div className="max-w-md w-full bg-blue-950 bg-opacity-90 rounded-2xl shadow-xl p-10 text-center backdrop-blur-md border border-blue-700 mx-auto">
@@ -37,6 +45,32 @@ const DifficultySelector = ({
         aria-label="Select difficulty level"
         className="mb-6"
       />
+
+      <div className="mb-6">
+        <label className="block text-blue-500 font-semibold text-xl mb-3 text-center">
+          Choose Your Side
+        </label>
+        <div className="flex justify-center gap-4">
+          <button
+            onClick={() => handlePieceColor('w')}
+            className={`px-4 py-2 rounded-lg font-semibold transition duration-300 ${userPieceColor === 'w'
+              ? 'bg-white text-black shadow-inner'
+              : 'bg-gray-700 text-white'
+              }`}
+          >
+            White
+          </button>
+          <button
+            onClick={() => handlePieceColor('b')}
+            className={`px-4 py-2 rounded-lg font-semibold transition duration-300 ${userPieceColor === 'b'
+              ? 'bg-white text-black shadow-inner'
+              : 'bg-gray-700 text-white'
+              }`}
+          >
+            Black
+          </button>
+        </div>
+      </div>
 
       <button
         onClick={startGame}

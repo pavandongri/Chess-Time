@@ -8,14 +8,23 @@ const App = () => {
   const [difficulty, setDifficulty] = useState(1);
   const [gameStarted, setGameStarted] = useState(false);
   const [resumeGame, setResumeGame] = useState(false);
-
   const [canResume, setCanResume] = useState(false);
+  const [userPieceColor, setUserPieceColor] = useState('');
+  const colorsArray = ['b', 'w']
 
   useEffect(() => {
     const saved = localStorage.getItem('chessGameState');
+    const savedUserPieceColor = localStorage.getItem('userPieceColor')
     if (saved) {
       setCanResume(true);
+      setUserPieceColor(savedUserPieceColor)
     }
+
+    if (!savedUserPieceColor && !userPieceColor) {
+      const randomColor = colorsArray[Math.floor(Math.random() * colorsArray.length)];
+      setUserPieceColor(randomColor);
+    }
+
   }, []);
 
   const startGame = () => {
@@ -40,10 +49,13 @@ const App = () => {
             startGame={startGame}
             canResume={canResume}
             resumeGame={resumeSavedGame}
+            userPieceColor={userPieceColor}
+            setUserPieceColor={setUserPieceColor}
           />
         ) : (
           <ChessGame
             difficulty={difficulty}
+            userPieceColor={userPieceColor}
             onBack={() => {
               setGameStarted(false);
               setResumeGame(false);
